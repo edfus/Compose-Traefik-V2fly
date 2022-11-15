@@ -1,0 +1,32 @@
+version: "3.9"
+
+services:
+  v2fly:
+    image: "v2fly/v2fly-core:v4.45.2"
+    restart: unless-stopped
+    command: >-
+      v2ray -config=/etc/v2ray/config.json
+    expose:
+      - "80"
+      - "8080"
+    networks:
+      - traefik"
+    volumes:
+      - ./v2ray:/etc/v2ray
+    labels:
+      # traefik.tcp.routers.v2fly-tcp.rule: HostSNI(``)
+      # traefik.tcp.routers.v2fly-tcp.entryPoints: "websecure"
+      traefik.http.routers.v2fly-http.rule: ${V2FLY_ROUTER_RULE_HOSTS} && PathPrefix(``)
+      traefik.http.routers.v2fly-http.entryPoints: "websecure"
+      traefik.http.routers.v2fly-http.tls: true
+      traefik.http.routers.v2fly-http.tls.certresolver: cfresolver
+
+
+    logging:
+      options:
+        max-size: "50m"
+        max-file: "5" 
+
+networks:
+  traefik:
+    external: true

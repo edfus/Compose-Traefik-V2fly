@@ -9,11 +9,7 @@ services:
       NODE_ENV: production
       EXPIRE: ${CONSOLIDATION_CUTOFF_TIMESTAMP}
     networks:
-      - caddy
-    logging:
-      options:
-        max-size: "10m"
-        max-file: "3"
+      - traefik
     volumes:
       - ./external-rulesets:/app/external-rulesets
       - ${CONSOLIDATION_PROFILES_OUTPUT:-./profiles}:/app/output
@@ -21,11 +17,17 @@ services:
       - ${CONSOLIDATION_INJECTIONS_SRC:-./injections.yml}:/app/injections.yml
       - ${CONSOLIDATION_WRANGLER_CONFIG:-./wrangler.toml}:/app/wrangler.toml
     labels:
-      - caddy=http://:8080
-      - caddy.1_route=/.profiles
-      - caddy.1_route.0_basicauth=bcrypt
-      - caddy.1_route.0_basicauth.${CONSOLIDATION_ACCESS_USERNAME}="${CONSOLIDATION_ACCESS_PASSWORD_BCRYPTED}"
-      - caddy.1_route.reverse_proxy=http://clash-profiles:80
+      traefik.http.routers.clash-profiles.rule: ${CONSOLIDATION_ROUTER_RULE_HOSTS} && PathPrefix(`/.profiles`)
+      traefik.http.routers.clash-profiles.entryPoints: "websecure"
+      traefik.http.routers.clash-profiles.tls: true
+      traefik.http.routers.clash-profiles.tls.certresolver: cfresolver
+      traefik.http.routers.clash-profiles.service: clash-profiles 
+      traefik.http.routers.clash-profiles.middlewares: clash-profiles-access-auth  
+      traefik.http.middlewares.clash-profiles-access-auth.basicauth.usersfile: /credentials/clash-profiles-access
+    logging:
+      options:
+        max-size: "30m"
+        max-file: "3"
 networks:
-  caddy:
+  traefik:
     external: true

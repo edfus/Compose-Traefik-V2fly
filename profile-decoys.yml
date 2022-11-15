@@ -10,10 +10,16 @@ services:
       - ./cloner/sites/${GOSCRAPE_HOST:-"nic.eu.org"}:/sites/${GOSCRAPE_HOST:-"nic.eu.org"}
     restart: unless-stopped
     networks:
-      - caddy
+      - traefik
     environment:
       GOSCRAPE_ARGS: ${GOSCRAPE_ARGS:-"--depth 3 --imagequality 4"}
       GOSCRAPE_HOST: ${GOSCRAPE_HOST:-"nic.eu.org"}
+    labels:
+      traefik.enable: false
+    logging:
+      options:
+        max-size: "20m"
+        max-file: "3"
 
   goscrape-server:
     image: caddy/caddy:2.4.0-alpine
@@ -22,18 +28,21 @@ services:
     expose:
       - 80
     networks:
-      - caddy
+      - traefik
     profiles: [ "decoy-goscrape" ]
     labels:
-      caddy: "http://:8080"
-      caddy.reverse_proxy: "/* http://goscrape-server:80"
+      traefik.http.routers.goscrape-server.rule: ${GOSCRAPE_ROUTER_RULE_HOSTS} && PathPrefix(`/`)
+      traefik.http.routers.goscrape-server.entryPoints: "websecure"
+      traefik.http.routers.goscrape-server.tls: true
+      traefik.http.routers.goscrape-server.tls.certresolver: cfresolver
+      traefik.http.routers.goscrape-server.service: goscrape-server
+    volumes:
+      - ./cloner/sites/${GOSCRAPE_HOST:-"nic.eu.org"}:/sites
+    restart: unless-stopped
     logging:
       options:
         max-size: "10m"
         max-file: "3"
-    volumes:
-      - ./cloner/sites/${GOSCRAPE_HOST:-"nic.eu.org"}:/sites
-    restart: unless-stopped
 
   archivebox:
     image: archivebox/archivebox:sha-bf432d4
@@ -47,12 +56,19 @@ services:
     volumes:
       - ./archivebox-data:/data
     networks:
-      - caddy
+      - traefik
     restart: unless-stopped
-    labels:
-      caddy: "http://:8080"
-      # https://github.com/lucaslorentz/caddy-docker-proxy/issues/208#issuecomment-762333788
-      caddy.reverse_proxy: http://archivebox:8000
+    labels:      
+      traefik.http.routers.archivebox.rule: PathPrefix(`/`)
+      traefik.http.routers.archivebox.entryPoints: "websecure"
+      traefik.http.routers.archivebox.tls: true
+      traefik.http.routers.archivebox.tls.certresolver: cfresolver
+      traefik.http.routers.archivebox.service: archivebox
+    logging:
+      options:
+        max-size: "100m"
+        max-file: "3"
+
   
   scheduler:
     image: archivebox/archivebox:sha-bf432d4
@@ -65,11 +81,17 @@ services:
       - ARCHIVEBOX_SCHEDULE_TARGET=${ARCHIVEBOX_SCHEDULE_TARGET}
       - ARCHIVEBOX_SCHEDULE_ARGS=${ARCHIVEBOX_SCHEDULE_ARGS:-"--foreground --every=month --depth=0"}
     networks:
-      - caddy
+      - traefik
     restart: "unless-stopped"
     volumes:
       - ./archivebox-data:/data
+    labels:
+      traefik.enable: false
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
-  caddy:
+  traefik:
     external: true

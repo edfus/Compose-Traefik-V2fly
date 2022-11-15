@@ -1,0 +1,16 @@
+.env
+*.env
+.*.env
+*.bak
+secrets/*
+!secrets/.gitkeep
+credentials/*
+!credentials/.gitkeep
+cloner/sites
+v2ray/*
+!v2ray/.gitkeep
+client-configs/*
+!client-configs/.gitkeep
+userfiles/*
+!userfiles/.gitkeep
+x-*

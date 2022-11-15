@@ -1,0 +1,50 @@
+version: "3.9"
+
+secrets:
+  cloudflare-apikey-dns:
+    file: secrets/cloudflare/CF_DNS_API_TOKEN
+  cloudflare-apikey-zone:
+    file: secrets/cloudflare/CF_ZONE_API_TOKEN
+
+services:
+  traefik:
+    image: "traefik:v2.9"
+    restart: always
+    command:
+      # - "--entrypoints.postgres.address=:5432"
+      # - "--entrypoints.redis.address=:6379"
+      - "--certificatesresolvers.cfresolver.acme.dnschallenge=true"
+      - "--certificatesresolvers.cfresolver.acme.dnschallenge.provider=cloudflare"
+      - "--certificatesresolvers.cfresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+      - "--certificatesresolvers.cfresolver.acme.email=$CF_API_EMAIL"
+      - "--certificatesresolvers.cfresolver.acme.storage=/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    expose:
+      - "8080"
+    networks:
+      - traefik
+    secrets:
+      - "cloudflare-apikey-dns"
+      - "cloudflare-apikey-zone"
+    environment:
+      - "CF_API_EMAIL=$TRAEFIK_ACME_EMAIL"
+      - "CF_DNS_API_TOKEN=/run/secrets/cloudflare-apikey-dns"
+      - "CF_ZONE_API_TOKEN=/run/secrets/cloudflare-apikey-zone"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - ./traefik/traefik.yml:/traefik.yml
+      - ./traefik/acme.json:/acme.json
+    labels:
+      - traefik.http.routers.acme-domains.tls=true
+      - traefik.http.routers.acme-domains.tls.certresolver=cfresolver
+      
+    logging:
+      options:
+        max-size: "500m"
+        max-file: "5"
+
+networks:
+  traefik:
+    external: true

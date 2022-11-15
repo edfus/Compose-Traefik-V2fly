@@ -1,0 +1,60 @@
+version: '3.9'
+
+services:
+  client-configs-server:
+    image: lipanski/docker-static-website:2.1.0
+    expose:
+      - 3000
+    networks:
+      - traefik
+    labels:
+      traefik.http.routers.client-configs.rule: ${CONFIG_ROUTER_RULE_HOSTS} && Method(`GET`, `OPTIONS`, `HEAD`) && PathPrefix(`/.config`)
+      traefik.http.routers.client-configs.entryPoints: "websecure"
+      traefik.http.routers.client-configs.tls: true
+      traefik.http.routers.client-configs.tls.certresolver: cfresolver
+      traefik.http.routers.client-configs.service: client-configs-server
+      traefik.http.routers.client-configs.middlewares: client-configs-auth,client-configs-headers 
+      traefik.http.middlewares.client-configs-auth.basicauth.usersfile: /user-credentials
+      traefik.http.middlewares.client-configs-headers.headers.customresponseheaders.Profile-Update-Interval: "12"
+      traefik.http.middlewares.client-configs-headers.headers.customresponseheaders.Subscription-Userinfo: "expire=${CONFIG_DUE_TIMESTAMP:-2274253409}"
+      traefik.http.middlewares.client-configs-headers.headers.Content-Disposition: "attachment; filename=${CONFIG_FILENAME:-Config}"
+      traefik.http.middlewares.client-configs-headers.headers.Content-Type: "application/x-yaml"
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - ./caddy/config:/home/static/.config:ro
+      - ./credentials/profile-client-configs:/user-credentials
+    restart: unless-stopped
+
+  client-configs-doh:
+    image: satishweb/doh-server:alpine
+    profiles:
+      - client-configs-doh
+    expose:
+      - 8053
+    labels:
+      traefik.http.routers.client-configs-doh.rule: ${CONFIG_DOH_ROUTER_RULE_HOSTS} && PathPrefix(`${CONFIG_DOH_PATH:-/dns-query}`)
+      traefik.http.routers.client-configs-doh.entryPoints: "websecure"
+      traefik.http.routers.client-configs-doh.tls: true
+      traefik.http.routers.client-configs-doh.tls.certresolver: cfresolver
+      traefik.http.routers.client-configs-doh.service: client-configs-doh
+    environment:
+      UPSTREAM_DNS_SERVER: "udp:8.8.8.8:53"
+      DOH_HTTP_PREFIX: "${CONFIG_DOH_PATH}"
+      DOH_SERVER_LISTEN: ":8053"
+      DOH_SERVER_TIMEOUT: "10"
+      DOH_SERVER_TRIES: "3"
+      DOH_SERVER_VERBOSE: "false"
+    networks:
+      - traefik
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+networks:
+  traefik:
+    external: true

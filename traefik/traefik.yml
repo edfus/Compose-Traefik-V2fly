@@ -1,0 +1,36 @@
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+log:
+  level: DEBUG
+  format: json
+
+accessLog:
+  format: json
+
+api:
+  dashboard: true
+
+entryPoints:
+  traefik:
+    address: :8080
+  web:
+    address: :80
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          permanent: true
+  websecure:
+    address: :443
+    http:
+      tls:
+        certResolver: myresolver
+providers:
+  # Enable Docker configuration backend
+  docker:
+    network: "traefik"
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: true
+    watch: true
